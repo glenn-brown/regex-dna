@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+die() { echo '***' "$@" '***' ; exit 1 ; }
+go build . || die Could not build.
+echo Timing:
+gunzip -c fasta-5000000.out.gz > fasta-5000000.out || die gunzip
+echo $((time -p ./regex-dna >/dev/null) 2>&1 < fasta-5000000.out) \
+| awk '{print $4 "u " $6 "s " $2 "r"}' || die "Could not run benchmark."
+rm fasta-5000000.out
+echo Testing:
+./regex-dna < fasta-1000.out > out || die "Could not run test."
+diff -u regex-dna.txt out && echo Passed || die "Failed"
+

@@ -42,7 +42,7 @@ package main
 #include <string.h>
 #include <glib.h>		 // apt-get install libglib2.0-dev
 #include <tcl8.4/tcl.h> 	 // apt-get install tcl8.4-dev
-// cgo requires shims to macros and array-indexed pointers.
+// cgo requires these trivial shims to use macros and array-indexed pointers:
 static inline void ref  (Tcl_Obj *o) { Tcl_IncrRefCount (o); }
 static inline void dref (Tcl_Obj *o) { Tcl_DecrRefCount (o); }
 static inline int end (Tcl_RegExpInfo *i, int n) { return i->matches[n].end; }
@@ -57,7 +57,7 @@ import (
 )
 
 ////////////////////////////////////////////////////////////////
-// Regexp library shims.  Derived from regex-dna.c
+// Regexp library shims, similar to regex-dna.c
 ////////////////////////////////////////////////////////////////
 
 // Return a pointer to the array backing the slice
@@ -81,10 +81,13 @@ func reCount(pattern []byte, input []byte) (count int) {
 	// Count occurances.
 	in := C.Tcl_NewStringObj((*C.char)(data(input)), (C.int)(len(input)))
 	idx_max := len(input)
-	for idx := 0; idx < idx_max; idx++ {
+	for idx := 0; idx < idx_max; {
 		rv := C.Tcl_RegExpExecObj(nil, re, in, C.int(idx), 1, 0)
+		if rv == -1 {
+			panic ("Tcl_RegExpExecObj")
+		}
 		if rv == 0 {
-			return count
+			break
 		}
 		var info C.Tcl_RegExpInfo
 		C.Tcl_RegExpGetInfo(re, &info)
@@ -114,14 +117,15 @@ func reSub(pattern []byte, sub []byte, input []byte) []byte {
 	if err != nil {
 		panic("g_regex_replace_literal")
 	}
-	l := C.strlen((*C.char)(subd)) + 1
+	defer C.g_free (C.gpointer(subd));
+	l := C.strlen((*C.char)(subd))
 	rv := make([]byte, l)
 	C.memcpy(data(rv), unsafe.Pointer (subd), l)
 	return rv
 }
 
 ////////////////////////////////////////////////////////////////
-// Original Go Authors' program, tweaked to use libraries above.
+// Original Go Authors' program, tweaked to use library shims above.
 ////////////////////////////////////////////////////////////////
 
 var variants = []string{
